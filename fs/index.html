@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>QFS-meter</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="manifest" href="manifest.json">
+<!--
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon" />
+    <link rel="apple-touch-icon" href="apple_touch_icon.png" />
+    <link rel="apple-touch-icon" sizes="57x57" href="apple_touch_icon_57x57.png" />
+    <link rel="apple-touch-icon" sizes="72x72" href="apple_touch_icon_72x72.png" />
+    <link rel="apple-touch-icon" sizes="76x76" href="apple-touch-icon_76x76.png" />
+    <link rel="apple-touch-icon" sizes="114x114" href="apple_touch_icon-114x114.png" />
+    <link rel="apple-touch-icon" sizes="120x120" href="apple_touch_icon_120x120.png" />
+    <link rel="apple-touch-icon" sizes="144x144" href="apple_touch_icon_144x144.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="apple_touch_icon_152x152.png" />
+    -->
+    <style>
+        #canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="canvas" width="1792px" height="1080px"></canvas>
+    <script>
+        var Dcounter = 0;
+    </script>
+    <script src="websocket.js"></script>
+    <script src="general.js"></script>
+
+    <script>
+        window.onunload = window.onbeforeunload = function () {
+            //sl_ws.close();
+            connected = false;
+        };
+
+
+        var canvas = document.getElementById('canvas');
+        var ctx = canvas.getContext('2d');
+        canvas.style.background = "#5b5b67";
+
+        // Load the needle image
+        var needleImage;
+        var backgroundImage;
+
+
+        var centerX = canvas.width / 2;
+        var centerY = canvas.height / 2;
+        var radius = canvas.height / 2 - 50;
+        var sensitivity = 1; // Default sensitivity        
+        var setposition = -0.193731547;
+        var lastVoltage = 0;
+        var lastDialAngle = 0;
+        var originalCanvasWidth = 1728;
+        var originalCanvasHeight = 1080;
+        var leftDstop = -0.785398163, rightDstop = 0.785398163, leftStop = originalCanvasWidth / 3.92, rStop, lStop;
+        var timeDelta = 1;
+        var lastTime = getTimestamp();
+        var desired_frame_time = 16.6666666; // ms for 60 fps
+        var scaleX = 1, scaleY = 1;
+        ctx.font = "140px Arial";
+        ctx.shadowColor = "black";
+        ctx.fontColor = "yellow";
+        ctx.shadowBlur = 7;
+        ctx.shadowOffsetX = 5;
+        ctx.shadowOffsetY = 5;
+
+
+
+        //===================================================================================================================
+        var screenTextObjects = [];
+
+        function ScreenTextObject(defaultText, defaultSize, x, y) {
+            this.x = x;
+            this.y = y;
+            this.defaultText = defaultText;
+            this.defaultSize = defaultSize;
+            this.visible = true;
+
+            this.draw = function (ctx) {
+                ctx.font = (this.defaultSize * scaleX) + "px Arial";
+                ctx.fillText(this.defaultText, this.x * scaleX, this.y * scaleY);
+            }
+            this.set = function (newText) {
+                this.defaultText = newText;
+            }
+
+        }
+        //-----------------------------------------------------------------------------------------------------------
+        function drawAllText() {
+            if (screenTextObjects.length == 0) return;
+
+            ctx.shadowColor = "#894a01";
+            ctx.fillStyle = "yellow";
+            ctx.shadowBlur = 7;
+            ctx.shadowOffsetX = 3;
+            ctx.shadowOffsetY = 3;
+
+            for (var i = 0; i < screenTextObjects.length; i++) {
+                if(screenTextObjects[i].visible){
+                    screenTextObjects[i].draw(ctx);
+                }
+            }
+
+            ctx.shadowColor = "transparent";
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+        }
+
+
+
+
+        //-----------------------------------------------------------------------------------------------------------
+        function addScreenTextObject(defaultText, defaultSize, x, y) {
+            var obj = new ScreenTextObject(defaultText, defaultSize, x, y);
+            screenTextObjects.push(obj);
+            return obj;
+        }
+        //===================================================================================================================
+        //===================================================================================================================
+        function ScreenObject(imageUrl, x, y, isInteractive, isSlider, visible, callBack) {
+            this.image = new Image();
+            this.image2 = new Image();
+            this.useImage0 = true;
+            this.x = x;
+            this.y = y;
+            this.isInteractive = isInteractive;
+            this.isSlider = isSlider;
+            this.dragging = false;
+            this.callback = callBack;
+            this.offsetX = 0; // Add this property to store the initial offset
+            this.sliderL = 0;
+            this.sliderR = this.image.width * scaleX;
+            this.sensitivity = 1;
+            this.visible = visible;
+
+            
+            this.loadImage = (imageUrl) => {
+                return new Promise((resolve, reject) => {
+                    let img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = reject;
+                    img.src = imageUrl;
+                });
+            };
+
+            this.addImage = async (imageUrl) => {
+                if (!this.image2.src) {
+                    this.image2 = await this.loadImage(imageUrl);
+                }
+            };
+
+            this.loadInitialImage = async () => {
+                this.image = await this.loadImage(imageUrl);
+                this.sliderR = this.image.width;
+            };
+
+            this.toggleImage = function (SexToggle) {
+                if (this.image2 == 0) return;
+                this.useImage0 = SexToggle;
+            }
+
+            this.draw = function (ctx) {
+                if (!this.visible) return;
+                var imgWidth = this.image.width * scaleX;
+                var imgHeight = this.image.height * scaleY;
+                if (this.useImage0)
+                    ctx.drawImage(this.image, this.x * scaleX, this.y * scaleY, imgWidth, imgHeight);
+                else
+                    ctx.drawImage(this.image2, this.x * scaleX, this.y * scaleY, imgWidth, imgHeight);
+            }
+
+
+            this.isInside = function (x, y) {
+                var width = this.image.width * scaleX;
+                var height = this.image.height * scaleY;
+                var isInside = (x >= this.x * scaleX && y >= this.y * scaleY && x <= (this.x * scaleX + width) && y <= (this.y * scaleY + height));
+
+                return isInside;
+            }
+
+
+            this.update = function (x, y, dragging) {
+                if (this.isSlider && dragging) {
+                    this.x = (x - this.offsetX) / scaleX;
+                    if (this.x < this.sliderL)
+                        this.x = this.sliderL;
+                    if (this.x > this.sliderR)
+                        this.x = this.sliderR;
+                    this.calcSensitivity();
+
+                }
+            }
+
+            this.calcSensitivity = function () {
+                // calculate sensitivity as a percentage
+                var totalSliderRange = this.sliderR - this.sliderL;
+                var currentSliderPosition = this.x - this.sliderL;
+                sensitivity = (currentSliderPosition / totalSliderRange) * 100;
+                if (sensText) sensText.set(sensitivity.toFixed(2));
+                return sensitivity;
+            }
+          
+            this.setSliderLimits = function (L, R) {
+                this.sliderL = L;
+                this.sliderR = R;
+            }
+
+            this.startDrag = function (x, y) {
+                this.dragging = true;
+                this.offsetX = x - this.x * scaleX;
+            }
+
+            this.trigger = function () {
+                if (this.callback) {
+                    this.callback();
+                }
+            }
+        }
+
+        //===================================================================================================================
+
+        var screenObjects = [];
+        async function addScreenObject(imageUrl, x, y, isInteractive, isSlider, visible, func) {
+            var obj = new ScreenObject(imageUrl, x, y, isInteractive, isSlider, visible, func);
+            await obj.loadInitialImage();
+            screenObjects.push(obj);
+            return obj;
+        }
+
+
+        function handleStart(event) {
+            event.preventDefault();
+            var x = event.touches ? event.touches[0].clientX : event.clientX;
+            var y = event.touches ? event.touches[0].clientY : event.clientY;
+
+            for (var i = 0; i < screenObjects.length; i++) {
+                var obj = screenObjects[i];
+                if (obj.isInteractive && obj.isInside(x, y)) {
+                    obj.startDrag(x, y);
+                    if (!obj.isSlider) {
+                        obj.trigger();
+                    }
+                }
+            }
+        }
+
+        function handleMove(event) {
+            event.preventDefault();
+            var x = event.touches ? event.touches[0].clientX : event.clientX;
+            var y = event.touches ? event.touches[0].clientY : event.clientY;
+
+            for (var i = 0; i < screenObjects.length; i++) {
+                var obj = screenObjects[i];
+                if (obj.dragging) {
+                    obj.update(x, y, obj.dragging);
+                }
+            }
+        }
+
+        function handleEnd(event) {
+            event.preventDefault();
+
+            for (var i = 0; i < screenObjects.length; i++) {
+                var obj = screenObjects[i];
+                obj.dragging = false;
+            }
+        }
+
+        canvas.addEventListener('mousedown', handleStart, false);
+        canvas.addEventListener('mousemove', handleMove, false);
+        canvas.addEventListener('mouseup', handleEnd, false);
+
+        canvas.addEventListener('touchstart', handleStart, false);
+        canvas.addEventListener('touchmove', handleMove, false);
+        canvas.addEventListener('touchend', handleEnd, false);
+
+
+        //===================================================================================================================
+        var aClock = 0, go2set = true;
+        function drawVoltmeter(voltage, timeDelta) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Draw the background image
+            ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+
+            var Diff = (voltage - lastVoltage) * (0.00001 * sensitivity) * timeDelta;
+            var currentDialAngle = setposition + Diff;
+            if (isNaN(lastDialAngle)) lastDialAngle = setposition; // dunno why it becomes a NAN sometimes.
+
+            // Apply lerp to the angle
+            var Fac = 0.95;
+            currentDialAngle = (lastDialAngle * Fac) + (currentDialAngle * (1 - Fac));
+            lastDialAngle = currentDialAngle;
+
+            // Check and adjust the angle if necessary
+            if (currentDialAngle > rightDstop || currentDialAngle < leftDstop || go2set) {
+                currentDialAngle = setposition;
+                lastDialAngle = setposition;
+                lastVoltage = voltage;
+                go2set = false;
+            }
+
+
+            // Draw the needle
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height);
+            ctx.rotate(currentDialAngle);
+            var scaleX = canvas.width / originalCanvasWidth;
+            var scaleY = canvas.height / originalCanvasHeight;
+            var needleWidth = needleImage.width * scaleX;
+            var needleHeight = needleImage.height * scaleY;
+            ctx.drawImage(needleImage, -needleWidth / 2, -needleHeight, needleWidth, needleHeight);
+            ctx.restore();
+
+
+            // Draw the screen objects
+            for (var i = 0; i < screenObjects.length; i++) {
+                screenObjects[i].draw(ctx);
+            }
+
+            if (aClock++ > 30) {
+                aClock = 0;
+                console.log("ADC rate = ", Dcounter);
+                Dcounter = 0;
+            }
+            drawAllText();
+
+        }
+        //===================================================================================================================
+        window.addEventListener('resize', resizeCanvas);
+        function resizeCanvas() {
+            var WW = window.innerWidth;
+            var HH = window.innerHeight;
+
+            var newWidth, newHeight;
+
+            if (WW / HH > 1.6) {
+                // If the window's aspect ratio is greater than 1.6,
+                // set the height to the window height and scale the width accordingly
+                newHeight = HH;
+                newWidth = HH * 1.6;
+            } else {
+                // If the window's aspect ratio is less than 1.6,
+                // set the width to the window width and scale the height accordingly
+                newWidth = WW;
+                newHeight = WW / 1.6;
+            }
+
+            // Set the new canvas dimensions
+            canvas.width = newWidth;
+            canvas.height = newHeight;
+
+            // Calculate the scale factors
+            scaleX = newWidth / 1728;
+            scaleY = newHeight / 1080;
+        }
+
+        //===================================================================================================================
+
+        function animate() {
+            var now = getTimestamp();//new Date().getTime();
+            timeused = (now - lastTime);
+            lastTime = now;
+            // use this to correct for differences in time between frames
+            timeDelta = timeused / desired_frame_time;
+            drawVoltmeter(needleVal, timeDelta);
+            requestAnimationFrame(animate);
+            //if (connected) { sl_ws.send("alive\n"); }// let the server know we are alive
+        }
+
+        //===================================================================================================================
+
+        //==============================================================================================
+        // calculate the TA value from the resistance
+        //==============================================================================================
+        var TAset = 0, TAcount = 0;
+        var LSBval24 = 5.0 / (Math.pow(2, 23) - 1);
+       
+        //=================================================================================================
+        function setButtonClicked() {
+            go2set = true;
+        }
+        function resetButtonClicked() {
+            go2set = true;
+        }
+        function slide_() {
+            //console.log('slide clicked');
+        }
+
+        function formatDate(date) {
+            var options = { year: 'numeric', month: 'long', day: 'numeric' };
+            return date.toLocaleDateString(undefined, options);
+        }
+
+        //========================================
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        //===================================================================================================================
+
+        var setButton, sensButton, setButton, malebutton;
+        var sleepT = 200;
+        async function loadImage(src) {
+            return new Promise((resolve, reject) => {
+                let img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+                img.src = src;
+            });
+        }
+
+        
+        //ctx.fillStyle = "white"; // Set the color of the text
+        //ctx.font = "30px Arial"; // Set the font size and style
+
+        // Draw the text
+        //ctx.fillText("Loading...", 50, 50);
+        
+        resizeCanvas();
+        var Loading = addScreenTextObject("Preparing", 120, 150, 500);
+        drawAllText();
+
+        async function loadButtons() {
+            try {
+                needleImage = await loadImage('needleW.png');
+                backgroundImage = await loadImage('dialPlain.png');
+                await sleep(50 );
+                setButton = await addScreenObject('bluebutton.png', originalCanvasWidth * 0.43, 702, true, false, true, setButtonClicked);
+                await setButton.addImage('greenbutton.png');
+                await sleep(50);
+                sensButton = await addScreenObject('yellowbutton.png', originalCanvasWidth * 0.5, 918, true, true, true, slide_);
+             
+                sensButton.setSliderLimits(450, 1400);
+                sensButton.x = (sensButton.sliderL + sensButton.sliderR) / 2; // Set initial position to middle of the slider range
+                sensitivity = sensButton.calcSensitivity();
+
+                await sleep(sleepT * 2);
+
+                initWS(); //starts the websocket
+                //await sleep(sleepT);
+                Loading.visible = false; // hiding the initial loading text
+                requestAnimationFrame(animate);
+                resizeCanvas();
+            } catch (err) {
+                console.error(`Error loading images: ${err}`);
+            }
+        }
+        loadButtons();
+
+        var sensText = addScreenTextObject(sensitivity.toFixed(2), 40, 320, 1000);
+
+        //===================================================================================================================
+
+    </script>
+</body>
+
+</html>

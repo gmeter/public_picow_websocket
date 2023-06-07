@@ -1,0 +1,43 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/pico/pico-sdk/**",
+                "C:/pico/pico-sdk/src/rp2_common/pico_cyw43_arch/include/**"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "windowsSdkVersion": "10.0.22000.0",
+            "compilerPath": "cl.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "windows-msvc-x64",
+            "configurationProvider": "ms-vscode.makefile-tools",
+        },
+        
+        {
+            "name": "linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${env:HOME}/pico/pico-sdk/**",
+                "${env:HOME}/pico/pico-sdk/src/rp2_common/pico_cyw43_arch/include/**"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "compilerPath": "/usr/bin/arm-none-eabi-gcc",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "gcc-arm",
+        }
+        
+    ],
+    "version": 4
+}

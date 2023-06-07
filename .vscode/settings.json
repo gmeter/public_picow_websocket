@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "httpd_structs.h": "c",
+        "port_common.h": "c"
+    },
+}

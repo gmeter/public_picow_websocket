@@ -1,0 +1,27 @@
+{
+    "short_name": "Q-meter",
+    "name": "Quantum e-meter",
+    "icons": [
+        {
+            "src": "/images/icons_128.png",
+            "type": "image/png",
+            "sizes": "128x128"
+        },
+        {
+            "src": "/images/icons_192.png",
+            "type": "image/png",
+            "sizes": "192x192"
+        },
+        {
+            "src": "/images/icons_256.png",
+            "type": "image/png",
+            "sizes": "256x256"
+        }
+    ],
+    "start_url": "https://localhost/index.html",
+    "background_color": "#3367D6",
+	"display_override": ["window-control-overlay", "minimal-ui"],
+	"display": "standalone",
+    "scope": "/app/",
+    "theme_color": "#3367D6"
+}
