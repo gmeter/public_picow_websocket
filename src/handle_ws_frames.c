@@ -1,4 +1,12 @@
 
+/*
+Licence: Have at it.  Code written by Duncan Gray and gifted to the Raspberry Pi community.
+https://github.com/gmeter/public_picow_websocket
+
+If you make improvements, share them so that we can all benefit.
+
+*/
+
 
 #include "lwip/sys.h"
 #include "lwip/timeouts.h"
