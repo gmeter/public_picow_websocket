@@ -73,7 +73,7 @@ void send_close_frame(struct tcp_pcb *pcb);
 /*
 // This is an alternative timer to the one below. It works but I thought the timer might be a problem
 // at some point so I switched to the below version which was much the same.
-
+*/
 #include "hardware/timer.h"
 #include "pico/time.h"
 
@@ -125,7 +125,7 @@ void install_timer_send_data_callback()
 
     timerIsSetup = true;
 }
-*/
+/*
 
 // Yeah I know. What are includes doing here. I tend to keep them where they are needed during dev
 // because if I decide to remove this code I can also easily remove the headers it needed.
@@ -191,7 +191,7 @@ void install_timer_send_data_callback()
     timer_data.timerIsSetup = true;
 }
 
-
+*/
 
 
 
