@@ -1,3 +1,9 @@
+/*
+This probably is not required because we just include the handle_es_frames.c file into httpd_ws.c
+
+*/
+
+
 #ifndef ___handle_websocket_frame___
 #define ___handle_websocket_frame___
 
