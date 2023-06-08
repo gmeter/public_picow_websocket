@@ -350,6 +350,9 @@ static char *http_cgi_params[LWIP_HTTPD_MAX_CGI_PARAMETERS]; /* Params extracted
 static char *http_cgi_param_vals[LWIP_HTTPD_MAX_CGI_PARAMETERS]; /* Values for each extracted param */
 #endif /* LWIP_HTTPD_CGI */
 
+
+#include "handle_ws_frames.c"
+
 #if LWIP_HTTPD_KILL_OLD_ON_CONNECTIONS_EXCEEDED
 /** global list of active HTTP connections, use to kill the oldest when
     running out of memory */
@@ -1652,6 +1655,9 @@ http_send_data_ssi(struct altcp_pcb *pcb, struct http_state *hs)
 static u8_t
 http_send(struct altcp_pcb *pcb, struct http_state *hs)
 {
+ 
+
+
   u8_t data_to_send = HTTP_NO_DATA_TO_SEND;
 
   LWIP_DEBUGF(HTTPD_DEBUG | LWIP_DBG_TRACE, ("http_send: pcb=%p hs=%p left=%d\n", (void *)pcb,
@@ -2549,10 +2555,12 @@ http_sent(void *arg, struct altcp_pcb *pcb, u16_t len)
   LWIP_UNUSED_ARG(len);
 
   if (hs == NULL) {
+    printf("nil\n");
     return ERR_OK;
   }
-
+  printf(".");
   hs->retries = 0;
+
 
   http_send(pcb, hs);
 
@@ -2612,7 +2620,6 @@ http_poll(void *arg, struct altcp_pcb *pcb)
 //==================================================================================================================
 //------------------------------------------------------------------------------------------------------------------
 
-#include "handle_ws_frames.c"
 
 //------------------------------------------------------------------------------------------------------------------
 /**

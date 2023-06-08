@@ -66,6 +66,7 @@ struct connection_info {
     int32_t data;
     char secKey[26]; // Add your secKey field
     bool isWebsocket; 
+    bool canSend;
     char secProtocol[100] ;
     struct connection_info *next; // Next connection in the list
     // any other information you need to keep for each connection
@@ -76,6 +77,22 @@ void send_data_callback(void* arg) ;
 void cleanUPconnection(struct connection_info * conn_info);
 void send_pong_frame(struct tcp_pcb * pcb);
 void send_close_frame(struct tcp_pcb *pcb);
+//=======================================================================================================================
+//=======================================================================================================================
+
+void sendToWebSocket()
+{
+  // Iterate over the list of connections
+  struct connection_info *conn_info = head;
+  while (conn_info != NULL) {
+      if (conn_info->isWebsocket && conn_info->canSend) {
+          // Call send_data_callback with conn_info
+          send_data_callback(conn_info);
+          conn_info->canSend = false;
+      }
+      conn_info = conn_info->next;
+  }
+}
 //=======================================================================================================================
 
 /*
@@ -99,15 +116,14 @@ bool repeating_timer_callback(struct repeating_timer *t) {
 
     // Adjust the timer interval based on the difference between the desired and actual intervals
     int64_t adjustment = (int64_t)desired_interval - (int64_t)actual_interval;
-    printf("adjusment %lld  t->delay_us %lld\n",adjustment,t->delay_us);
+    //printf("adjusment %lld  t->delay_us %lld\n",adjustment,t->delay_us);
     t->delay_us += adjustment;
 
     // Iterate over the list of connections
     struct connection_info *conn_info = head;
     while (conn_info != NULL) {
         if (conn_info->isWebsocket) {
-            // Call send_data_callback with conn_info
-            send_data_callback(conn_info);
+            conn_info->canSend = true;
         }
         conn_info = conn_info->next;
     }
@@ -124,14 +140,19 @@ void install_timer_send_data_callback()
 {
     if(timerIsSetup)
         return;
-
+    printf("\n====================================================\ninstall_timer_send_data_callback\n\n");
     // Get the current time
     previous_time = time_us_64();
 
     // Initialize the timer with the desired interval
-    add_repeating_timer_us(desired_interval, repeating_timer_callback, NULL, &timer);
+    bool result = add_repeating_timer_us(desired_interval, repeating_timer_callback, NULL, &timer);
 
-    timerIsSetup = true;
+    if (result) {
+        printf("Timer successfully created\n");
+        timerIsSetup = true;
+    } else {
+        printf("Could not create timer\n");
+    }
 }
 /*
 

@@ -42,6 +42,7 @@
 #define LWIP_DHCP                   1
 #define LWIP_IPV4                   1
 #define LWIP_TCP                    1
+#define LWIP_CALLBACK_API           1
 #define LWIP_UDP                    1
 #define LWIP_DNS                    1
 #define LWIP_TCP_KEEPALIVE          1

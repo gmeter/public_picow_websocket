@@ -19,6 +19,8 @@
 
 #define PLL_SYS_KHZ (260 * 1000)
 
+void sendToWebSocket(); // defined in handle_ws_frames.c
+
 void set_clock_khz(void)
 {
     // set a system clock frequency in khz
@@ -41,7 +43,9 @@ void run_server() {
     //cgi_init();
     printf("Http server initialized.\n");
     // infinite loop for now
-    for (;;) {}
+    for (;;) {
+        sendToWebSocket();
+    }
 }
 
 int main() {
