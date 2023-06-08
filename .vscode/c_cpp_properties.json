@@ -17,7 +17,7 @@
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "windows-msvc-x64",
-            "configurationProvider": "ms-vscode.makefile-tools",
+            "configurationProvider": "ms-vscode.makefile-tools"
         },
         
         {
@@ -25,7 +25,17 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${env:HOME}/pico/pico-sdk/**",
-                "${env:HOME}/pico/pico-sdk/src/rp2_common/pico_cyw43_arch/include/**"
+                "${env:HOME}/pico/pico-sdk/src/rp2_common/pico_cyw43_arch/include/**",
+                "${env:HOME}/pico/pico-sdk/lib/lwip/src/apps/http/**",
+                "${env:HOME}/pico/pico-sdk/lib/lwip/src/include/**",
+                "${env:HOME}/pico/pico-sdk/src/rp2_common/pico_cyw43_arch/include/**",
+                "${env:HOME}/pico/pico-sdk/lib/cyw43-driver/src/**",
+                "${env:HOME}/pico/pico-sdk/lib/lwip/src/include/**",
+                "${env:HOME}/pico/pico-sdk/lib/lwip/src/include/lwip/apps/**",
+                "${env:HOME}/pico/pico-sdk/lib/mbedtls/include/**",
+                "${env:HOME}/pico/pico-sdk/lib/lwip/contrib/ports/unix/port/include/**",
+                "${env:HOME}/pico/pico-sdk/lib/lwip/port/**",
+                "${env:HOME}/pico/pico-sdk/src/rp2_common/hardware_rtc/include/**"
             ],
             "defines": [
                 "_DEBUG",
@@ -35,7 +45,7 @@
             "compilerPath": "/usr/bin/arm-none-eabi-gcc",
             "cStandard": "c17",
             "cppStandard": "c++17",
-            "intelliSenseMode": "gcc-arm",
+            "intelliSenseMode": "gcc-arm"
         }
         
     ],

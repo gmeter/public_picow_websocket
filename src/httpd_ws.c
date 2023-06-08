@@ -88,6 +88,8 @@
  * about an unknown extension, make sure to add it (and its doctype) to
  * the 'g_psHTTPHeaders' list.
  */
+
+#include "lwipopts.h"
 #include "lwip/init.h"
 #include "httpd_ws.h"
 #include "lwip/debug.h"
@@ -2656,21 +2658,21 @@ http_recv(void *arg, struct /*altcp_pcb*/tcp_pcb *pcb, struct pbuf *p, err_t err
       // Handle as WebSocket frame
       handle_websocket_frame(p, pcb);
       pbuf_free(p);
-      printf("ws\n");
+      //printf("ws\n");
       return ERR_OK; // no need to process HTTP
   } 
-  printf("NOT ws\n");
+  //printf("NOT ws\n");
   // Check for WebSocket upgrade request
-  if (is_websocket_upgrade_request(p, pcb)) {
+  if (is_websocket_upgrade_request(p, pcb, hs)) {
       // Send WebSocket upgrade response      
-      printf("received valid websocket_upgrade_request\n");  
+      //printf("received valid websocket_upgrade_request\n");  
       send_websocket_upgrade_response(pcb);
-      printf("websocket_upgrade_response sent\n");
+      //printf("websocket_upgrade_response sent\n");
       pbuf_free(p);
       return ERR_OK; // no need to process HTTP
   } 
 
-printf("HTTP\n");
+//printf("HTTP\n");
 #if LWIP_HTTPD_SUPPORT_POST && LWIP_HTTPD_POST_MANUAL_WND
   if (hs->no_auto_wnd) {
     hs->unrecved_bytes += p->tot_len;

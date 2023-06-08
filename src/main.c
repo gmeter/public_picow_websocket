@@ -16,6 +16,7 @@
 #include "lwipopts.h"
 #include "cgi.h"
 #include "ssi.h"
+#include "hardware/watchdog.h"
 
 #define PLL_SYS_KHZ (260 * 1000)
 
@@ -45,6 +46,8 @@ void run_server() {
     // infinite loop for now
     for (;;) {
         sendToWebSocket();
+        // Update the watchdog timer to prevent reboot
+        watchdog_update();
     }
 }
 
@@ -58,12 +61,21 @@ int main() {
     stdio_init_all();
     set_clock_khz();
     setup_default_uart(); // must do this after changing the clock
+    
 
     // Give us time to monitor the terminal output via usb
 
-    sleep_ms(20000);
+    //sleep_ms(20000);
+    
+    // Start the watchdog tick with a divider of 12
+    // This assumes a 12MHz XOSC input and produces a 1MHz clock
+    watchdog_start_tick(12);
 
-    printf("\n\n=========================================================================\nhello\n");
+    // Enable the watchdog with a timeout of 5 seconds
+    // This sets a marker in the watchdog scratch register 4
+    watchdog_enable(5000, true);
+
+    printf("\n\n============================================\nhello\n");
 
     uint32_t cpu_speed = clock_get_hz(clk_sys);
     printf("CPU Speed: %lu Hz\n", cpu_speed);

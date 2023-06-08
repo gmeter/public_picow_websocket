@@ -4,7 +4,7 @@
 // from: https://github.com/raspberrypi/pico-examples/blob/01e8128953a9766608be0a9254afb7900107e222/pico_w/lwipopts_examples_common.h
 // allow override in some examples
 #ifndef NO_SYS
-#define NO_SYS                      1
+#define NO_SYS                      1 // PICO_CYW43_ARCH_THREADSAFE_BACKGROUND requires lwIP NO_SYS=1
 #endif
 // allow override in some examples
 #ifndef LWIP_SOCKET
