@@ -10,8 +10,7 @@ should be a walk in the park, yet it seems to struggle.
 
 The demo imitates an ADC receiving sinewave data and sending it to the 
 browser which displays and old style analog meter which moves back and forth
-with the sine wave.  It only runs for a few secs before the write buffer chokes,
-so don't miss it.
+with the sine wave.  
 
 Pity, it would have great. It can still be great if someone can fix it, 
 but for now it is only suitable for slower use cass.
