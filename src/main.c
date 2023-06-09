@@ -45,7 +45,7 @@ void run_server() {
     printf("Http server initialized.\n");
     // infinite loop for now
     for (;;) {
-        sendToWebSocket();
+        //sendToWebSocket();
         // Update the watchdog timer to prevent reboot
         watchdog_update();
     }
@@ -92,20 +92,23 @@ int main() {
     cyw43_wifi_pm(&cyw43_state, cyw43_pm_value(CYW43_NO_POWERSAVE_MODE, 20, 1, 1, 1));
 
     
-    if (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD,  CYW43_AUTH_WPA2_AES_PSK, 50000)) {
-        printf("failed to connect.\n");
-        return 1;
-    } else {
-        printf("Connected.\n");
 
-        extern cyw43_t cyw43_state;
-        int ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;
-        printf("IP Address: %hhu.%hhu.%hhu.%hhu\n", (unsigned char)(ip_addr & 0xFF), (unsigned char)((ip_addr >> 8) & 0xFF), (unsigned char)((ip_addr >> 16) & 0xFF), (unsigned char)(ip_addr >> 24));
-        
-        int32_t rssi;
-        cyw43_ioctl(&cyw43_state, 254, sizeof rssi, (uint8_t *)&rssi, CYW43_ITF_STA);
-        printf("Signal strength: %ld\n", rssi);
-    }
+    while (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK, 30000)) {
+    printf("failed to connect.\n");
+    // use sleep_ms instead of best_effort_wfe_or_timeout
+    sleep_ms(1000);
+    } 
+    
+    printf("Connected.\n");
+
+    extern cyw43_t cyw43_state;
+    int ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;
+    printf("IP Address: %hhu.%hhu.%hhu.%hhu\n", (unsigned char)(ip_addr & 0xFF), (unsigned char)((ip_addr >> 8) & 0xFF), (unsigned char)((ip_addr >> 16) & 0xFF), (unsigned char)(ip_addr >> 24));
+    
+    int32_t rssi;
+    cyw43_ioctl(&cyw43_state, 254, sizeof rssi, (uint8_t *)&rssi, CYW43_ITF_STA);
+    printf("Signal strength: %ld\n", rssi);
+    
     // turn on LED to signal connected
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 
