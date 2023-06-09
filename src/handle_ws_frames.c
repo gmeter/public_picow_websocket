@@ -17,9 +17,11 @@ If you make improvements, share them so that we can all benefit.
 #include "httpd_structs.h"
 #include "lwip/def.h"
 #include "mbedtls/base64.h"
+#include "hardware/watchdog.h"
+
 
 // #include "altcp.h"
-#include "lwip/altcp_tcp.h"
+//#include "lwip/altcp_tcp.h"
 #if HTTPD_ENABLE_HTTPS
 #include "lwip/altcp_tls.h"
 #endif
@@ -37,6 +39,7 @@ If you make improvements, share them so that we can all benefit.
 #include "hardware/irq.h"
 #include "hardware/timer.h"
 
+#define INTERVAL_MS 20
 uint32_t debug_count = 0;
 
 struct connection_info *head = NULL; // This should be a global variable
@@ -52,8 +55,8 @@ unsigned int lwip_port_rand(void)
 }
 
 uint8_t connectionCounter = 0;
-bool callbacks_have_been_setup = false;
-uint8_t loopTime = 20; // ms
+//bool callbacks_have_been_setup = false;
+//uint8_t loopTime = 20; // ms
 
 struct connection_info
 {
@@ -73,29 +76,57 @@ struct connection_info
 };
 
 //=======================================================================================================================
-void send_data_callback(void *arg);
+// All predefines 
 void cleanUPconnection(struct connection_info *conn_info);
+void sendToWebSocket();// a continuious loop which checks for data to be sent and sends it.
+//bool repeating_timer_callback(struct repeating_timer *t); // sets the canSend flags true every 20ms//
+//void install_timer_send_data_callback();  // installs the above callback
+void removeFromList(struct connection_info *conn_info_gone); // removes conn_info data if a websocket goes away
+int findOpenChannel(struct connection_info *conn_info); // find an ADC channel
+bool send_data(struct connection_info *conn_info, const char *data, uint16_t length); // writes to websocket
+err_t sent_callback(void *arg, struct tcp_pcb *tpcb, u16_t len); // checks if there is more data to send and sends it
+void error_callback(void *arg, err_t err); // a callback for when an error occurs
+struct connection_info *setup_callbacks(struct tcp_pcb *pcb, struct http_state *hs);// sets up above callback and stores other ws data
+void send_websocket_upgrade_response(struct tcp_pcb *pcb); // does what it says
+uint8_t *convert32bitIntTo24Bit2sCompliment(uint32_t I, uint8_t *byteArray); // only needed in our demo
+void calcSineWave(struct connection_info *conn_info); // only needed in our demo
+void prepDataToSend(void *arg); // This is where you fetch your data to be sent
+void send_close_frame(struct tcp_pcb *pcb); 
 void send_pong_frame(struct tcp_pcb *pcb);
-void send_close_frame(struct tcp_pcb *pcb);
-void websocket_error(void *arg, err_t err);
+void send_binary_frame(struct tcp_pcb *pcb, const uint8_t *data, uint64_t len);
+void send_text_frame(struct tcp_pcb *pcb, const char *text);
+void handle_ping_frame(struct tcp_pcb *pcb); // received a ping, handle it
+void handle_pong_frame(struct tcp_pcb *pcb); // recieved a pong
+void handle_text_frame(struct tcp_pcb *pcb, uint8_t *data, uint64_t len); // received a text frame
+void handle_binary_frame(struct tcp_pcb *pcb, uint8_t *data, uint64_t len); // received a binary frame
+void handle_close_frame(struct tcp_pcb *pcb); // received a close frame from the browser
+void handle_websocket_frame(struct pbuf *p, struct tcp_pcb *pcb);  // decodes the frame type and handles it
+void cleanUPconnection(struct connection_info *conn_info);  // called after a closeframe or error
+bool is_websocket_upgrade_request(struct pbuf *p, struct tcp_pcb *pcb, struct http_state *hs);
+bool isWebSocket(struct tcp_pcb *pcb);
 
 //=======================================================================================================================
 //=======================================================================================================================
+// conn_info->canSend = true is set by main thread timer every 20ms
 
-void sendToWebSocket()
+// called when we received confirmation from the client
+// via lwip thread that the socket is connected and running
+void sendToWebSocket() 
 {
-  // Iterate over the list of connections
-  struct connection_info *conn_info = head;
-  while (conn_info != NULL)
-  {
-    if (conn_info->isWebsocket && conn_info->canSend)
+ 
+    // Iterate over the list of connections
+    struct connection_info *conn_info = head;
+    while (conn_info != NULL)
     {
-      // Call send_data_callback with conn_info
-      send_data_callback(conn_info);
-      conn_info->canSend = false;
+      if (conn_info->isWebsocket )//&& conn_info->canSend)
+      {        
+        prepDataToSend(conn_info); // write to the socket
+        conn_info->canSend = false;
+      }
+      conn_info = conn_info->next;
     }
-    conn_info = conn_info->next;
-  }
+    sys_timeout(INTERVAL_MS, (sys_timeout_handler)sendToWebSocket, NULL);
+    watchdog_update();
 }
 //=======================================================================================================================
 
@@ -106,6 +137,7 @@ void sendToWebSocket()
 #include "hardware/timer.h"
 #include "pico/time.h"
 
+/*
 // Global variables to hold the current and previous times
 uint64_t previous_time = 0;
 uint64_t desired_interval = 10000; // Desired interval in microseconds (20ms)
@@ -142,9 +174,10 @@ bool repeating_timer_callback(struct repeating_timer *t)
 }
 
 struct repeating_timer timer; // global
-bool timerIsSetup = false;
+
 void install_timer_send_data_callback()
 {
+  static bool timerIsSetup = false;
   if (timerIsSetup)
     return;
   printf("\n====================================================\ninstall_timer_send_data_callback\n\n");
@@ -165,7 +198,7 @@ void install_timer_send_data_callback()
   }
   
 }
-
+*/
 
 //============================================================================================
 void removeFromList(struct connection_info *conn_info_gone)
@@ -211,6 +244,7 @@ err_t sent_callback(void *arg, struct tcp_pcb *tpcb, u16_t len)
   struct connection_info *conn_info = (struct connection_info *)arg;
   if (conn_info->data2send != NULL)
   {
+    printf("sent_callback %d\n", strlen(conn_info->data2send));
     send_data(conn_info, conn_info->data2send, conn_info->data2send_len);
   }
   return true;
@@ -234,9 +268,9 @@ struct connection_info *setup_callbacks(struct tcp_pcb *pcb, struct http_state *
   // Add the new connection to the head of the list
   conn_info->next = head;
   head = conn_info;
-  tcp_err(pcb, websocket_error);
-  conn_info->isWebsocket = true;
+  tcp_err(pcb, error_callback);
   tcp_sent(pcb, sent_callback);
+  conn_info->isWebsocket = true;
   conn_info->pcb->so_options |= SOF_KEEPALIVE; // Enable TCP keepalive
   conn_info->pcb->keep_idle  = 60000; // Idle time in milliseconds
     // handle error
@@ -247,7 +281,7 @@ struct connection_info *setup_callbacks(struct tcp_pcb *pcb, struct http_state *
 //------------------------------------------------------------------------
 
 //====================================================================================
-void websocket_error(void *arg, err_t err)
+void error_callback(void *arg, err_t err)
 {
   printf("TCP error callback called, err = %d\n", err);
   struct connection_info *conn_info = (struct connection_info *)arg;
@@ -259,19 +293,20 @@ void websocket_error(void *arg, err_t err)
   // Set any pointers to the tcp_pcb to NULL...
   // ...
 }
+//===================================================================================
+
 //====================================================================================
 bool send_data(struct connection_info *conn_info, const char *data, uint16_t length)
 {
   err_t err;
   uint16_t len = length;
-  // int attempt = 0; tcp_pcb
 
   do
   {
     LWIP_DEBUGF(HTTPD_DEBUG | LWIP_DBG_TRACE, ("Trying to send %d bytes, attempt #%d\n", len, ++attempt));
     if (conn_info->pcb != NULL)
     {
-      err = tcp_write(conn_info->pcb, data, len, TCP_WRITE_FLAG_COPY);
+      err = altcp_write(conn_info->pcb, data, len, TCP_WRITE_FLAG_COPY);
       if (err == ERR_MEM)
       {
         if ((tcp_sndbuf(conn_info->pcb) == 0) || (tcp_sndqueuelen(conn_info->pcb) >= TCP_SND_QUEUELEN))
@@ -396,7 +431,7 @@ void send_websocket_upgrade_response(struct tcp_pcb *pcb)
 
     conn_info->number = connectionCounter;
     printf("Got a ws connection %d\n", connectionCounter);
-    install_timer_send_data_callback();
+    //install_timer_send_data_callback();
   }
   else
     free(conn_info);
@@ -433,6 +468,7 @@ void send_text_frame(struct tcp_pcb *pcb, const char *text)
       len >>= 8;
     }
   }
+
 
   if (send_data(conn_info, (const char *)header, sizeof(header)))
   {
@@ -558,7 +594,7 @@ void calcSineWave(struct connection_info *conn_info)
 //========================================================
 //========================================================
 //========================================================
-void send_data_callback(void *arg)
+void prepDataToSend(void *arg)
 {
 
   struct connection_info *conn_info = (struct connection_info *)arg;
@@ -580,7 +616,7 @@ void send_data_callback(void *arg)
           p[3] = (unsigned char)((connectionCounter >> 8) & 0xFF);
           p[4] = (unsigned char)((connectionCounter) & 0xFF);
           n = 4;
-          //printf ("send_data_callback: number of connections\n");
+          //printf ("prepDataToSend: number of connections\n");
           send_binary_frame(conn_info->pcb, p, n);
           send_pong_frame((struct tcp_pcb *)conn_info->pcb);
         }
@@ -606,13 +642,13 @@ void send_data_callback(void *arg)
   if (conn_info->alive > 300)
   {
     printf("conn_info->alive = %d\n", conn_info->alive);
-    LWIP_DEBUGF(HTTPD_DEBUG, ("send_data_callback: closing because client has gone away %d\n", conn_info->alive));
+    LWIP_DEBUGF(HTTPD_DEBUG, ("prepDataToSend: closing because client has gone away %d\n", conn_info->alive));
     send_close_frame(conn_info->pcb);
   }
   sys_check_timeouts();
 }
 //==================================================================================================================
-
+/*
 void decode_websocket_header(uint8_t *frame_data, uint8_t *fin, uint8_t *opcode, uint8_t *mask, uint64_t *payload_len, uint8_t *masking_key)
 {
   // Decode the header
@@ -627,21 +663,28 @@ void decode_websocket_header(uint8_t *frame_data, uint8_t *fin, uint8_t *opcode,
     memcpy(masking_key, &frame_data[2], 4);
   }
 }
-
+*/
 //==================================================================================================================
 
 void handle_text_frame(struct tcp_pcb *pcb, uint8_t *data, uint64_t len)
 {
-
+  
+  static bool timerSet = false;
   struct connection_info *conn_info = (struct connection_info *)pcb->callback_arg;
 
-   // printf("Received text:\n");
-  if (strncmp((const char *)data, "alive\n", 6) == 0)
+   // printf("Received text:\n"); return;
+  if (strncmp((const char *)data, "#\n", 2) == 0)//sent by the client
   {
-    // printf("alive\n");
-    conn_info->alive = 1; // this is our watch-dog counter, reset by the client on every draw frame
+     printf("alive\n");
+    conn_info->alive = 1; // this is our watch-dog counter,
+    
+    if(!timerSet){
+      sys_timeout(INTERVAL_MS, (sys_timeout_handler)sendToWebSocket, NULL);
+      timerSet = true;
+    }
+    
   }
-
+  watchdog_update();
 }
 
 //==================================================================================================================
@@ -670,7 +713,7 @@ void send_close_frame(struct tcp_pcb *pcb)
   uint8_t close_frame[4] = {0x88, 0x02, 0x03, 0xE8}; // 0x88 = FIN + Close opcode, 0x02 = payload length, 0x03E8 = status code 1000
 
   // Send the Close frame
-  err_t err = tcp_write(pcb, close_frame, sizeof(close_frame), TCP_WRITE_FLAG_COPY);
+  err_t err = altcp_write(pcb, close_frame, sizeof(close_frame), TCP_WRITE_FLAG_COPY);
   if (err != ERR_OK)
   {
     printf("Error sending Close frame: %s\n", lwip_strerr(err));
@@ -679,7 +722,7 @@ void send_close_frame(struct tcp_pcb *pcb)
   err_t error = tcp_close(pcb);
   if (error != ERR_OK)
   {
-    LWIP_DEBUGF(HTTPD_DEBUG, ("send_data_callback: error closing socket\n"));
+    LWIP_DEBUGF(HTTPD_DEBUG, ("prepDataToSend: error closing socket\n"));
   }
   cleanUPconnection(conn_info);
   printf("close frame\n");
@@ -692,7 +735,7 @@ void send_pong_frame(struct tcp_pcb *pcb)
   uint8_t pong_frame[2] = {0x8A, 0x00}; // 0x8A = FIN + Pong opcode, 0x00 = payload length
 
   // Send the Pong frame
-  err_t err = tcp_write(pcb, pong_frame, sizeof(pong_frame), TCP_WRITE_FLAG_COPY);
+  err_t err = altcp_write(pcb, pong_frame, sizeof(pong_frame), TCP_WRITE_FLAG_COPY);
   if (err != ERR_OK)
   {
     printf("Error sending Pong frame: %s\n", lwip_strerr(err));
@@ -751,14 +794,23 @@ void handle_websocket_frame(struct pbuf *p, struct tcp_pcb *pcb)
 
   // printf("handle_websocket_frame\n");
   //  Decode the header
-  uint8_t fin, opcode, mask;
+  uint8_t  opcode, mask;//, fin;
   uint64_t payload_len;
   uint8_t masking_key[4] = {0};
-  decode_websocket_header(frame_data, &fin, &opcode, &mask, &payload_len, masking_key);
+  //decode_websocket_header(frame_data, &fin, &opcode, &mask, &payload_len, masking_key);
 
-  // Unmask the payload if necessary
+ // Decode the header
+  //fin = (frame_data[0] & 0x80) >> 7;
+  opcode = frame_data[0] & 0x0F;
+  mask = (frame_data[1] & 0x80) >> 7;
+  payload_len = frame_data[1] & 0x7F;
+  //  if the payload length is 126 or 127, indicating an extended payload length.
+  // If the MASK bit is set, get the masking key
   if (mask)
   {
+    memcpy(masking_key, &frame_data[2], 4);
+
+  // Unmask the payload if necessary
     // printf("got a mask\n");
     for (uint64_t i = 0; i < payload_len; i++)
     {
@@ -801,9 +853,11 @@ void handle_websocket_frame(struct pbuf *p, struct tcp_pcb *pcb)
     LWIP_DEBUGF(HTTPD_DEBUG, ("Error, handle_websocket_frame: unknown opcode %d\n", opcode));
     break;
   }
+  printf("==1\n");
 }
 
 //======================================================================================================================
+/*
 char *get_requested_subprotocol(char *http_request)
 {
   char *protocol_header_start = strstr(http_request, "Sec-WebSocket-Protocol: ");
@@ -822,6 +876,7 @@ char *get_requested_subprotocol(char *http_request)
   }
   return NULL;
 }
+*/
 //==================================================================================================================
 // Assuming pbuf data is a null-terminated string
 
@@ -855,7 +910,7 @@ bool is_websocket_upgrade_request(struct pbuf *p, struct tcp_pcb *pcb, struct ht
     return false;
   }
 
-  printf("Checking for Sec-WebSocket-Key\n");
+  printf("\nChecking for Sec-WebSocket-Key\n");
   // Check if the Sec-WebSocket-Key header exists
   char *key_header_start = lwip_strnstr(hdr, SEC_WEBSOCKET_KEY_HEADER, data_len);
   if (key_header_start == NULL)
