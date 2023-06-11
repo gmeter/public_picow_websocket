@@ -73,7 +73,7 @@ int main() {
 
     // Enable the watchdog with a timeout of 5 seconds
     // This sets a marker in the watchdog scratch register 4
-    watchdog_enable(5000, true);
+    watchdog_enable(35000, true);
 
     printf("\n\n============================================\nhello\n");
 
@@ -94,9 +94,10 @@ int main() {
     
 
     while (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK, 30000)) {
-    printf("failed to connect.\n");
-    // use sleep_ms instead of best_effort_wfe_or_timeout
-    sleep_ms(1000);
+        printf("failed to connect.\n");
+        watchdog_update();
+        // use sleep_ms instead of best_effort_wfe_or_timeout
+        sleep_ms(1000);
     } 
     
     printf("Connected.\n");
@@ -116,10 +117,3 @@ int main() {
     run_server();
 }
 
-/*
-So, for anyone looking at this thread in the future, it looks like the following code fragment will give you the RSSI value (in station mode):
-Code: Select all
-
-     int32_t rssi;
-     cyw43_ioctl(&cyw43_state, 254, sizeof rssi, (uint8_t *)&rssi, CYW43_ITF_STA);
-*/

@@ -19,7 +19,6 @@
             "intelliSenseMode": "windows-msvc-x64",
             "configurationProvider": "ms-vscode.makefile-tools"
         },
-        
         {
             "name": "linux",
             "includePath": [
@@ -45,9 +44,9 @@
             "compilerPath": "/usr/bin/arm-none-eabi-gcc",
             "cStandard": "c17",
             "cppStandard": "c++17",
-            "intelliSenseMode": "gcc-arm"
+            "intelliSenseMode": "gcc-arm",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
         }
-        
     ],
     "version": 4
 }
